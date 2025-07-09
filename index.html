@@ -3,100 +3,131 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Commentboard</title>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<title>Commentboard 🐝</title>
 <style>
-  body { font-family: Arial, sans-serif; padding: 1rem; max-width: 600px; margin: auto; }
-  #messages { border: 1px solid #ccc; padding: 0.5rem; height: 300px; overflow-y: auto; margin-bottom: 1rem; }
-  .message { padding: 0.25rem 0; border-bottom: 1px solid #eee; }
-  .name { font-weight: bold; margin-right: 0.5rem; }
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 600px;
+    margin: 2rem auto;
+    background: #fafafa;
+    color: #222;
+  }
+  #messages {
+    border: 1px solid #ddd;
+    padding: 1rem;
+    height: 300px;
+    overflow-y: auto;
+    background: #fff;
+    margin-bottom: 1rem;
+    border-radius: 8px;
+  }
+  .message {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+  }
+  .name {
+    font-weight: bold;
+    color: #2b7a78;
+  }
+  input, button {
+    padding: 0.5rem;
+    font-size: 1rem;
+    border-radius: 6px;
+    border: 1px solid #ccc;
+  }
+  input {
+    width: calc(50% - 12px);
+    margin-right: 0.5rem;
+  }
+  button {
+    cursor: pointer;
+    background-color: #3aafa9;
+    color: white;
+    border: none;
+  }
+  button:hover {
+    background-color: #2b7a78;
+  }
 </style>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
-<h2>Commentboard 🐝</h2>
+<h1>Commentboard 🐝</h1>
 
 <div id="messages"></div>
 
-<input type="text" id="messageInput" placeholder="Type your message here..." />
+<input id="nameInput" placeholder="Your name (optional)" autocomplete="off" />
+<input id="messageInput" placeholder="Type your message..." autocomplete="off" />
 <button id="sendBtn">Send</button>
 
 <script>
-  // Your Firebase config here:
   const firebaseConfig = {
     apiKey: "AIzaSyAR-xyDfLRoh3VGhQ9988-4RImmxWbbXh4",
     authDomain: "commentboard-8e0b0.firebaseapp.com",
-    databaseURL: "https://YOUR_PROJECT.firebaseio.com",
     projectId: "commentboard-8e0b0",
     storageBucket: "commentboard-8e0b0.firebasestorage.app",
     messagingSenderId: "514093341301",
-    appId: "1:514093341301:web:ec27bf7ad2b52887abb63c"
+    appId: "1:514093341301:web:ec27bf7ad2b52887abb63c",
+    measurementId: "G-BRETTLSML1"
   };
 
-  // Initialize Firebase
   firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
-  const commentsRef = db.ref('comments');
+  const db = firebase.firestore();
 
-  // Use a default username if none set
-  let username = "anonomys";
+  const messagesEl = document.getElementById('messages');
+  const nameInput = document.getElementById('nameInput');
+  const messageInput = document.getElementById('messageInput');
+  const sendBtn = document.getElementById('sendBtn');
 
-  // Simple prompt to ask for name once (can skip if you want)
-  let savedName = sessionStorage.getItem('username');
-  if (!savedName) {
-    const inputName = prompt("Enter your name:", "anonomys");
-    if (inputName && inputName.trim()) {
-      username = inputName.trim();
-      sessionStorage.setItem('username', username);
-    }
-  } else {
-    username = savedName;
+  function displayMessage({ name, text }) {
+    const div = document.createElement('div');
+    div.className = 'message';
+    div.innerHTML = `<span class="name">${escapeHtml(name || 'Anonymys')}:</span> ${escapeHtml(text)}`;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
-  // Display messages on page
-  commentsRef.on('child_added', (snapshot) => {
-    const msg = snapshot.val();
-    const msgDiv = document.createElement('div');
-    msgDiv.classList.add('message');
-    msgDiv.innerHTML = `<span class="name">${msg.name}:</span> ${msg.text}`;
-    document.getElementById('messages').appendChild(msgDiv);
-    // Scroll to bottom
-    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-  });
+  function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, (m) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[m]);
+  }
 
-  // Send message function with logs & checks
-  function sendMessage() {
-    const input = document.getElementById('messageInput');
-    const text = input.value.trim();
-
-    if (!text) {
-      alert("Please type a message before sending!");
-      return;
-    }
-
-    console.log("Sending message:", text);
-
-    commentsRef.push({
-      name: username,
-      text: text,
-      reports: 0
-    }).then(() => {
-      console.log("Message sent!");
-      input.value = '';
-    }).catch((err) => {
-      alert("Error sending message. Try again later.");
-      console.error(err);
+  db.collection('messages')
+    .orderBy('timestamp')
+    .onSnapshot(snapshot => {
+      messagesEl.innerHTML = '';
+      snapshot.forEach(doc => displayMessage(doc.data()));
     });
-  }
 
-  document.getElementById('sendBtn').addEventListener('click', sendMessage);
+  sendBtn.onclick = () => {
+    const name = nameInput.value.trim() || 'Anonymys';
+    const text = messageInput.value.trim();
+    if (!text) return;
+    sendBtn.disabled = true;
 
-  // Also send message if user presses Enter in input
-  document.getElementById('messageInput').addEventListener('keyup', (e) => {
-    if (e.key === 'Enter') {
-      sendMessage();
-    }
+    db.collection('messages').add({
+      name,
+      text,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+      messageInput.value = '';
+      sendBtn.disabled = false;
+      messageInput.focus();
+    }).catch(() => {
+      alert('Error sending message, try again!');
+      sendBtn.disabled = false;
+    });
+  };
+
+  messageInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') sendBtn.click();
   });
 </script>
 
