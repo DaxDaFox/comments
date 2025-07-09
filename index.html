@@ -1,79 +1,104 @@
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-  import { getDatabase, ref, push, onChildAdded, update } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Commentboard</title>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; padding: 1rem; max-width: 600px; margin: auto; }
+  #messages { border: 1px solid #ccc; padding: 0.5rem; height: 300px; overflow-y: auto; margin-bottom: 1rem; }
+  .message { padding: 0.25rem 0; border-bottom: 1px solid #eee; }
+  .name { font-weight: bold; margin-right: 0.5rem; }
+</style>
+</head>
+<body>
 
+<h2>Commentboard 🐝</h2>
+
+<div id="messages"></div>
+
+<input type="text" id="messageInput" placeholder="Type your message here..." />
+<button id="sendBtn">Send</button>
+
+<script>
+  // Your Firebase config here:
   const firebaseConfig = {
     apiKey: "AIzaSyAR-xyDfLRoh3VGhQ9988-4RImmxWbbXh4",
     authDomain: "commentboard-8e0b0.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT.firebaseio.com",
     projectId: "commentboard-8e0b0",
-    storageBucket: "commentboard-8e0b0.appspot.com",
+    storageBucket: "commentboard-8e0b0.firebasestorage.app",
     messagingSenderId: "514093341301",
-    appId: "1:514093341301:web:ec27bf7ad2b52887abb63c",
-    databaseURL: "https://commentboard-8e0b0-default-rtdb.firebaseio.com"
+    appId: "1:514093341301:web:ec27bf7ad2b52887abb63c"
   };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  const commentsRef = ref(db, 'comments');
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  const commentsRef = db.ref('comments');
 
-  let username = localStorage.getItem('chatName');
+  // Use a default username if none set
+  let username = "anonomys";
 
-  // Try to get name from prompt, fallback to "Anonomys"
-  if (!username) {
-    try {
-      username = prompt("What's your name?")?.trim() || "Anonomys";
-    } catch {
-      username = "Anonomys";
+  // Simple prompt to ask for name once (can skip if you want)
+  let savedName = sessionStorage.getItem('username');
+  if (!savedName) {
+    const inputName = prompt("Enter your name:", "anonomys");
+    if (inputName && inputName.trim()) {
+      username = inputName.trim();
+      sessionStorage.setItem('username', username);
     }
-    localStorage.setItem('chatName', username);
+  } else {
+    username = savedName;
   }
 
-  let isBlocked = false;
+  // Display messages on page
+  commentsRef.on('child_added', (snapshot) => {
+    const msg = snapshot.val();
+    const msgDiv = document.createElement('div');
+    msgDiv.classList.add('message');
+    msgDiv.innerHTML = `<span class="name">${msg.name}:</span> ${msg.text}`;
+    document.getElementById('messages').appendChild(msgDiv);
+    // Scroll to bottom
+    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+  });
 
+  // Send message function with logs & checks
   function sendMessage() {
-    if (isBlocked) {
-      alert("You've been temporarily suspended from chatting.");
+    const input = document.getElementById('messageInput');
+    const text = input.value.trim();
+
+    if (!text) {
+      alert("Please type a message before sending!");
       return;
     }
-    const input = document.getElementById("messageInput");
-    const text = input.value.trim();
-    if (!text) return;
 
-    push(commentsRef, {
+    console.log("Sending message:", text);
+
+    commentsRef.push({
       name: username,
       text: text,
       reports: 0
     }).then(() => {
-      input.value = "";
+      console.log("Message sent!");
+      input.value = '';
     }).catch((err) => {
-      alert("Oops! Couldn't send message. Try again later.");
+      alert("Error sending message. Try again later.");
       console.error(err);
     });
   }
 
-  function renderMessage(key, data) {
-    const msgDiv = document.createElement("div");
-    msgDiv.className = "message";
-    msgDiv.innerHTML = `
-      <div>
-        <strong>${data.name}</strong>: ${data.text}
-        <div class="meta">${data.reports} report${data.reports !== 1 ? "s" : ""}</div>
-      </div>
-      <button class="report">Report</button>
-    `;
-    msgDiv.querySelector("button").onclick = () => {
-      const commentRef = ref(db, 'comments/' + key);
-      update(commentRef, { reports: data.reports + 1 });
+  document.getElementById('sendBtn').addEventListener('click', sendMessage);
 
-      if (data.name === username && data.reports + 1 >= 3) {
-        isBlocked = true;
-        alert("You have been suspended from chatting due to reports.");
-      }
-    };
-    document.getElementById("messages").appendChild(msgDiv);
-  }
-
-  onChildAdded(commentsRef, (snapshot) => {
-    renderMessage(snapshot.key, snapshot.val());
+  // Also send message if user presses Enter in input
+  document.getElementById('messageInput').addEventListener('keyup', (e) => {
+    if (e.key === 'Enter') {
+      sendMessage();
+    }
   });
 </script>
+
+</body>
+</html>
