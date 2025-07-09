@@ -3,80 +3,69 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Commentboard Chat</title>
+<title>Commentboard 🐝</title>
 <style>
   body {
     font-family: Arial, sans-serif;
     max-width: 600px;
     margin: 2rem auto;
-    padding: 1rem;
-    background: #fefefe;
+    background: #fafafa;
+    color: #222;
   }
   #messages {
-    border: 1px solid #ccc;
-    min-height: 300px;
+    border: 1px solid #ddd;
     padding: 1rem;
+    height: 300px;
     overflow-y: auto;
+    background: #fff;
+    margin-bottom: 1rem;
+    border-radius: 8px;
   }
   .message {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 0.6rem;
-    padding: 0.3rem 0.5rem;
-    background: #eee;
-    border-radius: 5px;
-    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
   }
-  .message .text {
-    flex-grow: 1;
+  .name {
+    font-weight: bold;
+    color: #2b7a78;
   }
-  .red-dot {
-    cursor: pointer;
-    margin-left: 0.7rem;
-    font-size: 1.3rem;
-    user-select: none;
-    color: red;
-  }
-  #input-section {
-    margin-top: 1rem;
-    display: flex;
-    gap: 0.5rem;
-  }
-  #input-section input[type="text"] {
-    flex-grow: 1;
+  input, button {
     padding: 0.5rem;
     font-size: 1rem;
+    border-radius: 6px;
+    border: 1px solid #ccc;
   }
-  #input-section button {
-    padding: 0.5rem 1rem;
-    font-size: 1rem;
+  input {
+    width: calc(50% - 12px);
+    margin-right: 0.5rem;
+  }
+  button {
+    cursor: pointer;
+    background-color: #3aafa9;
+    color: white;
+    border: none;
+  }
+  button:hover {
+    background-color: #2b7a78;
   }
 </style>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
-<h2>Commentboard Chat</h2>
+<h1>Commentboard 🐝</h1>
+
 <div id="messages"></div>
 
-<div id="input-section">
-  <input id="nameInput" type="text" placeholder="Your name (optional)" />
-  <input id="messageInput" type="text" placeholder="Write a message..." />
-  <button id="sendBtn">Send</button>
-</div>
-
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
-<!-- EmailJS -->
-<script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+<input id="nameInput" placeholder="Your name (optional)" autocomplete="off" />
+<input id="messageInput" placeholder="Type your message..." autocomplete="off" />
+<button id="sendBtn">Send</button>
 
 <script>
-  // Your Firebase config here
   const firebaseConfig = {
     apiKey: "AIzaSyAR-xyDfLRoh3VGhQ9988-4RImmxWbbXh4",
     authDomain: "commentboard-8e0b0.firebaseapp.com",
-    databaseURL: "https://commentboard-8e0b0-default-rtdb.firebaseio.com",
     projectId: "commentboard-8e0b0",
     storageBucket: "commentboard-8e0b0.firebasestorage.app",
     messagingSenderId: "514093341301",
@@ -84,75 +73,59 @@
     measurementId: "G-BRETTLSML1"
   };
 
-  // Init Firebase
   firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+  const db = firebase.firestore();
 
-  // Init EmailJS with your public key
-  emailjs.init('1cmPhcMd31ix_u8px'); // <--- your public key here
-
-  const messagesDiv = document.getElementById('messages');
+  const messagesEl = document.getElementById('messages');
   const nameInput = document.getElementById('nameInput');
   const messageInput = document.getElementById('messageInput');
   const sendBtn = document.getElementById('sendBtn');
 
-  // Default name fallback
-  function getName() {
-    let name = nameInput.value.trim();
-    return name === '' ? 'anonomys' : name;
+  function displayMessage({ name, text }) {
+    const div = document.createElement('div');
+    div.className = 'message';
+    div.innerHTML = `<span class="name">${escapeHtml(name || 'Anonymys')}:</span> ${escapeHtml(text)}`;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
-  // Listen for new messages in Firebase and update UI
-  db.ref('comments').on('value', snapshot => {
-    messagesDiv.innerHTML = ''; // Clear all messages on each update
+  function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, (m) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[m]);
+  }
 
-    const data = snapshot.val() || {};
-    Object.entries(data).forEach(([key, msg]) => {
-      const messageEl = document.createElement('div');
-      messageEl.className = 'message';
-
-      const textEl = document.createElement('div');
-      textEl.className = 'text';
-      textEl.textContent = `${msg.name}: ${msg.message}`;
-
-      const redDot = document.createElement('span');
-      redDot.className = 'red-dot';
-      redDot.textContent = '🔴';
-      redDot.title = "Report this message";
-
-      // On red dot click, send email alert
-      redDot.onclick = () => {
-        emailjs.send('service_iwe4uxl', 'template_s0j822i', {
-          message: `Reported message from ${msg.name}: "${msg.message}"`,
-          user_email: 'daxdafox1@gmail.com'
-        }).then(() => {
-          alert('Report sent! Thanks for letting us know 💖');
-        }).catch(() => {
-          alert('Failed to send report. Please try again later.');
-        });
-      };
-
-      messageEl.appendChild(textEl);
-      messageEl.appendChild(redDot);
-
-      messagesDiv.appendChild(messageEl);
+  db.collection('messages')
+    .orderBy('timestamp')
+    .onSnapshot(snapshot => {
+      messagesEl.innerHTML = '';
+      snapshot.forEach(doc => displayMessage(doc.data()));
     });
 
-    // Scroll to bottom so newest messages are visible
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  });
-
-  // Send new message to Firebase
   sendBtn.onclick = () => {
-    const name = getName();
-    const message = messageInput.value.trim();
-    if (!message) return alert('Please type a message!');
+    const name = nameInput.value.trim() || 'Anonymys';
+    const text = messageInput.value.trim();
+    if (!text) return;
+    sendBtn.disabled = true;
 
-    db.ref('comments').push({ name, message });
-    messageInput.value = '';
+    db.collection('messages').add({
+      name,
+      text,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+      messageInput.value = '';
+      sendBtn.disabled = false;
+      messageInput.focus();
+    }).catch(() => {
+      alert('Error sending message, try again!');
+      sendBtn.disabled = false;
+    });
   };
 
-  // Optional: allow sending message by pressing Enter in message input
   messageInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') sendBtn.click();
   });
