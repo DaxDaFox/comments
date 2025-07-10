@@ -53,15 +53,11 @@
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
-
 <h1>Commentboard 🐝</h1>
-
 <div id="messages"></div>
-
 <input id="nameInput" placeholder="Your name (optional)" autocomplete="off" />
 <input id="messageInput" placeholder="Type your message..." autocomplete="off" />
 <button id="sendBtn">Send</button>
-
 <script>
   const firebaseConfig = {
     apiKey: "AIzaSyAR-xyDfLRoh3VGhQ9988-4RImmxWbbXh4",
@@ -72,15 +68,48 @@
     appId: "1:514093341301:web:ec27bf7ad2b52887abb63c",
     measurementId: "G-BRETTLSML1"
   };
-
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
-
   const messagesEl = document.getElementById('messages');
   const nameInput = document.getElementById('nameInput');
   const messageInput = document.getElementById('messageInput');
   const sendBtn = document.getElementById('sendBtn');
-
+  
+  // Notification system variables
+  let hasUnreadMessages = false;
+  let isPageVisible = true;
+  let messageCount = 0;
+  const originalTitle = "Commentboard 🐝";
+  
+  // Update tab title based on notification state
+  function updateTabTitle() {
+    if (hasUnreadMessages && !isPageVisible) {
+      document.title = "🔴" + originalTitle;
+    } else {
+      document.title = originalTitle;
+    }
+  }
+  
+  // Handle page visibility changes
+  document.addEventListener('visibilitychange', () => {
+    isPageVisible = !document.hidden;
+    if (isPageVisible) {
+      hasUnreadMessages = false;
+      updateTabTitle();
+    }
+  });
+  
+  // Handle window focus/blur for better notification support
+  window.addEventListener('focus', () => {
+    isPageVisible = true;
+    hasUnreadMessages = false;
+    updateTabTitle();
+  });
+  
+  window.addEventListener('blur', () => {
+    isPageVisible = false;
+  });
+  
   function displayMessage({ name, text }) {
     const div = document.createElement('div');
     div.className = 'message';
@@ -88,7 +117,7 @@
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
-
+  
   function escapeHtml(str) {
     return str.replace(/[&<>"']/g, (m) => ({
       '&': '&amp;',
@@ -98,20 +127,28 @@
       "'": '&#39;'
     })[m]);
   }
-
+  
   db.collection('messages')
     .orderBy('timestamp')
     .onSnapshot(snapshot => {
+      const newMessageCount = snapshot.size;
+      
+      // Check if this is a new message (not initial load)
+      if (messageCount > 0 && newMessageCount > messageCount && !isPageVisible) {
+        hasUnreadMessages = true;
+        updateTabTitle();
+      }
+      
+      messageCount = newMessageCount;
       messagesEl.innerHTML = '';
       snapshot.forEach(doc => displayMessage(doc.data()));
     });
-
+  
   sendBtn.onclick = () => {
     const name = nameInput.value.trim() || 'Anonymys';
     const text = messageInput.value.trim();
     if (!text) return;
     sendBtn.disabled = true;
-
     db.collection('messages').add({
       name,
       text,
@@ -125,11 +162,10 @@
       sendBtn.disabled = false;
     });
   };
-
+  
   messageInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') sendBtn.click();
   });
 </script>
-
 </body>
 </html>
