@@ -300,6 +300,22 @@
   body.light-mode .vote-timer {
     color: #f57c00;
   }
+  
+  .fingerprint-info {
+    margin-top: 10px;
+    padding: 8px;
+    background: #444;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #ccc;
+    border-left: 3px solid #4db6ac;
+  }
+  
+  body.light-mode .fingerprint-info {
+    background: #e8f5e8;
+    color: #666;
+    border-left: 3px solid #3aafa9;
+  }
 </style>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
@@ -318,10 +334,13 @@
 <div class="admin-panel">
   <button class="admin-toggle" onclick="toggleAdmin()">🔧 Admin Panel</button>
   <div id="adminContent" class="admin-content">
-    <p>⚠️ Warning: This requires 4 votes within 1 minute to delete ALL messages!</p>
+    <p>⚠️ Warning: This requires 4 unique devices within 1 minute to delete ALL messages!</p>
     <button id="voteClearBtn" class="vote-clear-btn" onclick="voteToDeleteAll()">Vote to Clear All Messages</button>
     <div id="voteStatus" class="vote-status">
       No active voting session
+    </div>
+    <div id="fingerprintInfo" class="fingerprint-info">
+      🔒 Enhanced Security: Voting is now protected by browser fingerprinting to prevent abuse from multiple tabs/windows.
     </div>
   </div>
 </div>
@@ -346,10 +365,44 @@
   const voteStatus = document.getElementById('voteStatus');
   const voteClearBtn = document.getElementById('voteClearBtn');
   
-  // Voting system variables
-  let currentVotingSession = null;
-  let voteTimer = null;
-  let hasVoted = false;
+  // Browser fingerprinting function
+  function generateBrowserFingerprint() {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.textBaseline = 'top';
+    ctx.font = '14px Arial';
+    ctx.fillText('Commentboard fingerprint', 2, 2);
+    
+    const fingerprint = [
+      navigator.userAgent,
+      navigator.language,
+      screen.width + 'x' + screen.height,
+      screen.colorDepth,
+      new Date().getTimezoneOffset(),
+      navigator.hardwareConcurrency || 'unknown',
+      navigator.deviceMemory || 'unknown',
+      navigator.platform,
+      navigator.cookieEnabled,
+      !!window.sessionStorage,
+      !!window.localStorage,
+      !!window.indexedDB,
+      typeof(Worker) !== 'undefined',
+      canvas.toDataURL()
+    ].join('|');
+    
+    // Simple hash function
+    let hash = 0;
+    for (let i = 0; i < fingerprint.length; i++) {
+      const char = fingerprint.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    
+    return Math.abs(hash).toString(36);
+  }
+  
+  // Get the current device fingerprint
+  const deviceFingerprint = generateBrowserFingerprint();
   
   // Character counter functionality
   messageInput.addEventListener('input', function() {
@@ -377,33 +430,46 @@
     adminContent.classList.toggle('show');
   }
   
-  // Voting system functions
+  // Enhanced voting system with fingerprinting
   function voteToDeleteAll() {
-    if (hasVoted) {
-      alert('You have already voted in this session!');
-      return;
-    }
-    
     voteClearBtn.disabled = true;
-    voteClearBtn.textContent = 'Voting...';
+    voteClearBtn.textContent = 'Checking...';
     
-    // Add vote to Firebase
-    db.collection('votes').add({
-      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-      action: 'delete_all'
-    }).then(() => {
-      hasVoted = true;
-      voteClearBtn.textContent = 'Vote Cast!';
-      setTimeout(() => {
-        voteClearBtn.textContent = 'Vote to Clear All Messages';
+    // Check if this fingerprint has already voted in the current session
+    db.collection('votes')
+      .where('fingerprint', '==', deviceFingerprint)
+      .where('timestamp', '>', new Date(Date.now() - 60000))
+      .get()
+      .then((snapshot) => {
+        if (!snapshot.empty) {
+          alert('This device has already voted in the current session!');
+          voteClearBtn.disabled = false;
+          voteClearBtn.textContent = 'Vote to Clear All Messages';
+          return;
+        }
+        
+        voteClearBtn.textContent = 'Voting...';
+        
+        // Add vote with fingerprint
+        return db.collection('votes').add({
+          timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+          action: 'delete_all',
+          fingerprint: deviceFingerprint
+        });
+      })
+      .then(() => {
+        voteClearBtn.textContent = 'Vote Cast!';
+        setTimeout(() => {
+          voteClearBtn.textContent = 'Vote to Clear All Messages';
+          voteClearBtn.disabled = false;
+        }, 2000);
+      })
+      .catch((error) => {
+        console.error('Error casting vote:', error);
+        alert('Error casting vote, try again!');
         voteClearBtn.disabled = false;
-      }, 2000);
-    }).catch((error) => {
-      console.error('Error casting vote:', error);
-      alert('Error casting vote, try again!');
-      voteClearBtn.disabled = false;
-      voteClearBtn.textContent = 'Vote to Clear All Messages';
-    });
+        voteClearBtn.textContent = 'Vote to Clear All Messages';
+      });
   }
   
   function updateVoteStatus(votes) {
@@ -416,18 +482,25 @@
       return voteTime > oneMinuteAgo;
     });
     
-    const voteCount = recentVotes.length;
+    // Group votes by fingerprint to count unique devices
+    const uniqueFingerprints = new Set();
+    recentVotes.forEach(vote => {
+      if (vote.fingerprint) {
+        uniqueFingerprints.add(vote.fingerprint);
+      }
+    });
+    
+    const uniqueVoteCount = uniqueFingerprints.size;
     const voteStatus = document.getElementById('voteStatus');
     
-    if (voteCount === 0) {
+    if (uniqueVoteCount === 0) {
       voteStatus.textContent = 'No active voting session';
       voteStatus.className = 'vote-status';
-      hasVoted = false;
       return;
     }
     
-    if (voteCount >= 4) {
-      voteStatus.innerHTML = `<strong>🔥 DELETING ALL MESSAGES! 🔥</strong><br/>Votes: ${voteCount}/4 - Threshold reached!`;
+    if (uniqueVoteCount >= 4) {
+      voteStatus.innerHTML = `<strong>🔥 DELETING ALL MESSAGES! 🔥</strong><br/>Unique devices voted: ${uniqueVoteCount}/4 - Threshold reached!`;
       voteStatus.className = 'vote-status active';
       
       // Delete all messages
@@ -443,7 +516,7 @@
     const oldestVoteTime = oldestVote.timestamp.toDate();
     const timeLeft = Math.ceil((oldestVoteTime.getTime() + 60000 - now.getTime()) / 1000);
     
-    voteStatus.innerHTML = `<strong>⚠️ Active Voting Session</strong><br/>Votes: ${voteCount}/4 required<br/>Time remaining: <span class="vote-timer">${timeLeft}s</span>`;
+    voteStatus.innerHTML = `<strong>⚠️ Active Voting Session</strong><br/>Unique devices: ${uniqueVoteCount}/4 required<br/>Time remaining: <span class="vote-timer">${timeLeft}s</span>`;
     voteStatus.className = 'vote-status active';
   }
   
@@ -466,7 +539,6 @@
       return batch.commit();
     }).then(() => {
       console.log('All messages and votes cleared successfully!');
-      hasVoted = false;
     }).catch((error) => {
       console.error('Error clearing messages:', error);
       alert('Error clearing messages, try again!');
