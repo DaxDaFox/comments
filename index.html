@@ -9,50 +9,131 @@
     font-family: Arial, sans-serif;
     max-width: 600px;
     margin: 2rem auto;
+    background: #222;
+    color: #e0e0e0;
+    transition: background 0.3s ease, color 0.3s ease;
+  }
+  
+  body.light-mode {
     background: #fafafa;
     color: #222;
   }
+  
   #messages {
-    border: 1px solid #ddd;
+    border: 1px solid #444;
     padding: 1rem;
     height: 300px;
     overflow-y: auto;
-    background: #fff;
+    background: #333;
     margin-bottom: 1rem;
     border-radius: 8px;
+    transition: background 0.3s ease, border-color 0.3s ease;
   }
+  
+  body.light-mode #messages {
+    border: 1px solid #ddd;
+    background: #fff;
+  }
+  
   .message {
     padding: 0.5rem 0;
+    border-bottom: 1px solid #555;
+  }
+  
+  body.light-mode .message {
     border-bottom: 1px solid #eee;
   }
+  
   .name {
     font-weight: bold;
+    color: #4db6ac;
+  }
+  
+  body.light-mode .name {
     color: #2b7a78;
   }
+  
   input, button {
     padding: 0.5rem;
     font-size: 1rem;
     border-radius: 6px;
+    border: 1px solid #555;
+    transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+  }
+  
+  body.light-mode input,
+  body.light-mode button {
     border: 1px solid #ccc;
   }
+  
   input {
     width: calc(50% - 12px);
     margin-right: 0.5rem;
+    background: #444;
+    color: #e0e0e0;
   }
+  
+  body.light-mode input {
+    background: #fff;
+    color: #222;
+  }
+  
   button {
     cursor: pointer;
-    background-color: #3aafa9;
+    background-color: #4db6ac;
     color: white;
     border: none;
   }
+  
   button:hover {
+    background-color: #26a69a;
+  }
+  
+  body.light-mode button {
+    background-color: #3aafa9;
+  }
+  
+  body.light-mode button:hover {
     background-color: #2b7a78;
+  }
+  
+  .theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background-color: #4db6ac;
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    font-size: 14px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    z-index: 1000;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  .theme-toggle:hover {
+    background-color: #26a69a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  }
+  
+  body.light-mode .theme-toggle {
+    background-color: #3aafa9;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  body.light-mode .theme-toggle:hover {
+    background-color: #2b7a78;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
 </style>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
+<button class="theme-toggle" onclick="toggleTheme()">☀️ Light Mode</button>
 <h1>Commentboard 🐝</h1>
 <div id="messages"></div>
 <input id="nameInput" placeholder="Your name (optional)" autocomplete="off" />
@@ -74,6 +155,40 @@
   const nameInput = document.getElementById('nameInput');
   const messageInput = document.getElementById('messageInput');
   const sendBtn = document.getElementById('sendBtn');
+  
+  // Theme toggle functionality
+  function toggleTheme() {
+    const body = document.body;
+    const themeToggle = document.querySelector('.theme-toggle');
+    
+    body.classList.toggle('light-mode');
+    
+    if (body.classList.contains('light-mode')) {
+      themeToggle.textContent = '🌙 Dark Mode';
+      localStorage.setItem('theme', 'light');
+    } else {
+      themeToggle.textContent = '☀️ Light Mode';
+      localStorage.setItem('theme', 'dark');
+    }
+  }
+  
+  // Load saved theme on page load
+  function loadTheme() {
+    const savedTheme = localStorage.getItem('theme');
+    const body = document.body;
+    const themeToggle = document.querySelector('.theme-toggle');
+    
+    if (savedTheme === 'light') {
+      body.classList.add('light-mode');
+      themeToggle.textContent = '🌙 Dark Mode';
+    } else {
+      // Default to dark mode
+      themeToggle.textContent = '☀️ Light Mode';
+    }
+  }
+  
+  // Initialize theme when page loads
+  loadTheme();
   
   // Notification system variables
   let hasUnreadMessages = false;
