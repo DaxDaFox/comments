@@ -430,22 +430,25 @@
     adminContent.classList.toggle('show');
   }
   
-  // Enhanced voting system with fingerprinting
+  // Enhanced voting system with fingerprinting - FIXED VERSION
   function voteToDeleteAll() {
     voteClearBtn.disabled = true;
     voteClearBtn.textContent = 'Checking...';
     
+    // Create a Firebase timestamp for 1 minute ago
+    const oneMinuteAgo = firebase.firestore.Timestamp.fromDate(new Date(Date.now() - 60000));
+    
     // Check if this fingerprint has already voted in the current session
     db.collection('votes')
       .where('fingerprint', '==', deviceFingerprint)
-      .where('timestamp', '>', new Date(Date.now() - 60000))
+      .where('timestamp', '>', oneMinuteAgo)
       .get()
       .then((snapshot) => {
         if (!snapshot.empty) {
           alert('This device has already voted in the current session!');
           voteClearBtn.disabled = false;
           voteClearBtn.textContent = 'Vote to Clear All Messages';
-          return;
+          return Promise.reject('Already voted'); // Stop the chain
         }
         
         voteClearBtn.textContent = 'Voting...';
@@ -465,6 +468,9 @@
         }, 2000);
       })
       .catch((error) => {
+        if (error === 'Already voted') {
+          return; // Already handled above
+        }
         console.error('Error casting vote:', error);
         alert('Error casting vote, try again!');
         voteClearBtn.disabled = false;
@@ -478,6 +484,7 @@
     
     // Filter votes from the last minute
     const recentVotes = votes.filter(vote => {
+      if (!vote.timestamp) return false;
       const voteTime = vote.timestamp.toDate();
       return voteTime > oneMinuteAgo;
     });
@@ -556,9 +563,9 @@
       updateVoteStatus(votes);
     });
   
-  // Clean up old votes periodically (older than 1 minute)
+  // Clean up old votes periodically (older than 1 minute) - FIXED VERSION
   setInterval(() => {
-    const oneMinuteAgo = new Date(Date.now() - 60000);
+    const oneMinuteAgo = firebase.firestore.Timestamp.fromDate(new Date(Date.now() - 60000));
     db.collection('votes')
       .where('timestamp', '<', oneMinuteAgo)
       .get()
@@ -583,10 +590,8 @@
     
     if (body.classList.contains('light-mode')) {
       themeToggle.textContent = '🌙 Dark Mode';
-      localStorage.setItem('theme', 'light');
     } else {
       themeToggle.textContent = '☀️ Light Mode';
-      localStorage.setItem('theme', 'dark');
     }
   }
   
