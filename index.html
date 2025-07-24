@@ -104,14 +104,14 @@
     border: 1px solid #ccc;
   }
   
-  input {
+  input[type="text"] {
     width: calc(50% - 12px);
     margin-right: 0.5rem;
     background: #444;
     color: #e0e0e0;
   }
   
-  body.light-mode input {
+  body.light-mode input[type="text"] {
     background: #fff;
     color: #222;
   }
@@ -167,9 +167,14 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
   
-  /* New styles for character counter */
+  /* Input container styles */
   .input-container {
-    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  
+  .input-row {
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -199,6 +204,128 @@
   
   body.light-mode .char-counter.danger {
     color: #f44336;
+  }
+  
+  /* Image upload styles */
+  .image-upload-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .file-input-wrapper {
+    position: relative;
+    overflow: hidden;
+    display: inline-block;
+  }
+  
+  .file-input-wrapper input[type=file] {
+    position: absolute;
+    left: -9999px;
+  }
+  
+  .file-input-label {
+    background-color: #666;
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+    border: 1px solid #555;
+  }
+  
+  .file-input-label:hover {
+    background-color: #555;
+  }
+  
+  body.light-mode .file-input-label {
+    background-color: #777;
+    border: 1px solid #ccc;
+  }
+  
+  body.light-mode .file-input-label:hover {
+    background-color: #666;
+  }
+  
+  .image-preview {
+    max-width: 100px;
+    max-height: 100px;
+    border-radius: 4px;
+    border: 1px solid #555;
+    object-fit: cover;
+  }
+  
+  body.light-mode .image-preview {
+    border: 1px solid #ccc;
+  }
+  
+  .remove-image {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-left: 5px;
+  }
+  
+  .remove-image:hover {
+    background-color: #d32f2f;
+  }
+  
+  /* Message image styles */
+  .message-image {
+    max-width: 200px;
+    max-height: 200px;
+    border-radius: 8px;
+    margin-top: 0.5rem;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    object-fit: cover;
+  }
+  
+  .message-image:hover {
+    transform: scale(1.05);
+  }
+  
+  /* Image modal styles */
+  .image-modal {
+    display: none;
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    cursor: pointer;
+  }
+  
+  .modal-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+  }
+  
+  .close-modal {
+    position: absolute;
+    top: 20px;
+    right: 30px;
+    color: white;
+    font-size: 40px;
+    font-weight: bold;
+    cursor: pointer;
+    z-index: 2001;
+  }
+  
+  .close-modal:hover {
+    opacity: 0.7;
   }
   
   /* Admin panel styles */
@@ -300,19 +427,40 @@
   body.light-mode .vote-timer {
     color: #f57c00;
   }
+  
+  .upload-progress {
+    font-size: 0.8em;
+    color: #4db6ac;
+    margin-left: 10px;
+  }
+  
+  body.light-mode .upload-progress {
+    color: #2b7a78;
+  }
 </style>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
 </head>
 <body>
 <button class="theme-toggle" onclick="toggleTheme()">☀️ Light Mode</button>
 <h1>Commentboard 🐝</h1>
 <div id="messages"></div>
 <div class="input-container">
-  <input id="nameInput" placeholder="Your name (optional)" autocomplete="off" />
-  <input id="messageInput" placeholder="Type your message..." autocomplete="off" maxlength="500" />
-  <span id="charCounter" class="char-counter">0/500</span>
-  <button id="sendBtn">Send</button>
+  <div class="input-row">
+    <input id="nameInput" type="text" placeholder="Your name (optional)" autocomplete="off" />
+    <input id="messageInput" type="text" placeholder="Type your message..." autocomplete="off" maxlength="500" />
+    <span id="charCounter" class="char-counter">0/500</span>
+    <button id="sendBtn">Send</button>
+  </div>
+  <div class="image-upload-container">
+    <div class="file-input-wrapper">
+      <input type="file" id="imageInput" accept="image/*" />
+      <label for="imageInput" class="file-input-label">📷 Add Image</label>
+    </div>
+    <div id="imagePreviewContainer"></div>
+    <span id="uploadProgress" class="upload-progress"></span>
+  </div>
 </div>
 
 <div class="admin-panel">
@@ -324,6 +472,12 @@
       No active voting session
     </div>
   </div>
+</div>
+
+<!-- Image Modal -->
+<div id="imageModal" class="image-modal" onclick="closeImageModal()">
+  <span class="close-modal" onclick="closeImageModal()">&times;</span>
+  <img class="modal-content" id="modalImage" />
 </div>
 
 <script>
@@ -338,6 +492,8 @@
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
+  const storage = firebase.storage();
+  
   const messagesEl = document.getElementById('messages');
   const nameInput = document.getElementById('nameInput');
   const messageInput = document.getElementById('messageInput');
@@ -345,11 +501,92 @@
   const charCounter = document.getElementById('charCounter');
   const voteStatus = document.getElementById('voteStatus');
   const voteClearBtn = document.getElementById('voteClearBtn');
+  const imageInput = document.getElementById('imageInput');
+  const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+  const uploadProgress = document.getElementById('uploadProgress');
+  
+  // Image handling variables
+  let selectedImage = null;
+  let selectedImageFile = null;
   
   // Voting system variables
   let currentVotingSession = null;
   let voteTimer = null;
   let hasVoted = false;
+  
+  // Image upload and preview functionality
+  imageInput.addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+      // Check file size (limit to 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size must be less than 5MB');
+        return;
+      }
+      
+      // Check file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      
+      selectedImageFile = file;
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        selectedImage = e.target.result;
+        showImagePreview(selectedImage);
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+  
+  function showImagePreview(imageSrc) {
+    imagePreviewContainer.innerHTML = `
+      <img src="${imageSrc}" class="image-preview" alt="Preview" />
+      <button class="remove-image" onclick="removeImagePreview()">✕</button>
+    `;
+  }
+  
+  function removeImagePreview() {
+    imagePreviewContainer.innerHTML = '';
+    selectedImage = null;
+    selectedImageFile = null;
+    imageInput.value = '';
+  }
+  
+  // Image modal functionality
+  function openImageModal(imageSrc) {
+    const modal = document.getElementById('imageModal');
+    const modalImg = document.getElementById('modalImage');
+    modal.style.display = 'block';
+    modalImg.src = imageSrc;
+  }
+  
+  function closeImageModal() {
+    document.getElementById('imageModal').style.display = 'none';
+  }
+  
+  // Upload image to Firebase Storage
+  async function uploadImage(file) {
+    const timestamp = Date.now();
+    const filename = `images/${timestamp}_${file.name}`;
+    const storageRef = storage.ref(filename);
+    
+    uploadProgress.textContent = 'Uploading image...';
+    
+    try {
+      const snapshot = await storageRef.put(file);
+      const downloadURL = await snapshot.ref.getDownloadURL();
+      uploadProgress.textContent = '';
+      return downloadURL;
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      uploadProgress.textContent = 'Upload failed';
+      throw error;
+    }
+  }
   
   // Character counter functionality
   messageInput.addEventListener('input', function() {
@@ -623,13 +860,20 @@
     }
   }
   
-  function displayMessage({ name, text, timestamp }, docId) {
+  function displayMessage({ name, text, timestamp, imageUrl }, docId) {
     const div = document.createElement('div');
     div.className = 'message';
+    
+    let imageHtml = '';
+    if (imageUrl) {
+      imageHtml = `<img src="${imageUrl}" class="message-image" alt="Uploaded image" onclick="openImageModal('${imageUrl}')" />`;
+    }
+    
     div.innerHTML = `
       <div class="message-content">
-        <span class="name">${escapeHtml(name || 'Anonymys')}:</span> ${escapeHtml(text)}
+        <span class="name">${escapeHtml(name || 'Anonymous')}:</span> ${escapeHtml(text)}
         <span class="timestamp">${formatTimestamp(timestamp)}</span>
+        ${imageHtml}
       </div>
       <button class="delete-btn" onclick="deleteMessage('${docId}', this)">Delete</button>
     `;
@@ -663,25 +907,45 @@
       snapshot.forEach(doc => displayMessage(doc.data(), doc.id));
     });
   
-  sendBtn.onclick = () => {
-    const name = nameInput.value.trim() || 'Anonymys';
+  sendBtn.onclick = async () => {
+    const name = nameInput.value.trim() || 'Anonymous';
     const text = messageInput.value.trim();
-    if (!text) return;
+    if (!text && !selectedImageFile) return;
+    
     sendBtn.disabled = true;
-    db.collection('messages').add({
-      name,
-      text,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(() => {
+    sendBtn.textContent = 'Sending...';
+    
+    try {
+      let imageUrl = null;
+      
+      // Upload image if one is selected
+      if (selectedImageFile) {
+        imageUrl = await uploadImage(selectedImageFile);
+      }
+      
+      // Add message to Firestore
+      await db.collection('messages').add({
+        name,
+        text,
+        imageUrl,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      
+      // Clear inputs
       messageInput.value = '';
       charCounter.textContent = '0/500';
       charCounter.classList.remove('warning', 'danger');
+      removeImagePreview();
       sendBtn.disabled = false;
+      sendBtn.textContent = 'Send';
       messageInput.focus();
-    }).catch(() => {
+    } catch (error) {
+      console.error('Error sending message:', error);
       alert('Error sending message, try again!');
       sendBtn.disabled = false;
-    });
+      sendBtn.textContent = 'Send';
+      uploadProgress.textContent = '';
+    }
   };
   
   messageInput.addEventListener('keydown', e => {
