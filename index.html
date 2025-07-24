@@ -440,7 +440,6 @@
 </style>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
 </head>
 <body>
 <button class="theme-toggle" onclick="toggleTheme()">☀️ Light Mode</button>
@@ -492,7 +491,6 @@
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
-  const storage = firebase.storage();
   
   const messagesEl = document.getElementById('messages');
   const nameInput = document.getElementById('nameInput');
@@ -506,7 +504,7 @@
   const uploadProgress = document.getElementById('uploadProgress');
   
   // Image handling variables
-  let selectedImage = null;
+  let selectedImageBase64 = null;
   let selectedImageFile = null;
   
   // Voting system variables
@@ -518,9 +516,9 @@
   imageInput.addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (file) {
-      // Check file size (limit to 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Image size must be less than 5MB');
+      // Check file size (limit to 2MB for base64 efficiency)
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Image size must be less than 2MB for fast uploading');
         return;
       }
       
@@ -531,12 +529,17 @@
       }
       
       selectedImageFile = file;
+      uploadProgress.textContent = 'Processing image...';
       
-      // Create preview
+      // Convert to base64
       const reader = new FileReader();
       reader.onload = function(e) {
-        selectedImage = e.target.result;
-        showImagePreview(selectedImage);
+        selectedImageBase64 = e.target.result;
+        showImagePreview(selectedImageBase64);
+        uploadProgress.textContent = 'Image ready!';
+        setTimeout(() => {
+          uploadProgress.textContent = '';
+        }, 1500);
       };
       reader.readAsDataURL(file);
     }
@@ -551,9 +554,10 @@
   
   function removeImagePreview() {
     imagePreviewContainer.innerHTML = '';
-    selectedImage = null;
+    selectedImageBase64 = null;
     selectedImageFile = null;
     imageInput.value = '';
+    uploadProgress.textContent = '';
   }
   
   // Image modal functionality
@@ -569,23 +573,32 @@
   }
   
   // Upload image to Firebase Storage
-  async function uploadImage(file) {
-    const timestamp = Date.now();
-    const filename = `images/${timestamp}_${file.name}`;
-    const storageRef = storage.ref(filename);
-    
-    uploadProgress.textContent = 'Uploading image...';
-    
-    try {
-      const snapshot = await storageRef.put(file);
-      const downloadURL = await snapshot.ref.getDownloadURL();
-      uploadProgress.textContent = '';
-      return downloadURL;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      uploadProgress.textContent = 'Upload failed';
-      throw error;
-    }
+  async function compressAndEncodeImage(file, maxWidth = 800, quality = 0.8) {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = function() {
+        // Calculate new dimensions
+        let { width, height } = img;
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        
+        // Set canvas size
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedBase64);
+      };
+      
+      img.src = URL.createObjectURL(file);
+    });
   }
   
   // Character counter functionality
@@ -860,13 +873,13 @@
     }
   }
   
-  function displayMessage({ name, text, timestamp, imageUrl }, docId) {
+  function displayMessage({ name, text, timestamp, imageData }, docId) {
     const div = document.createElement('div');
     div.className = 'message';
     
     let imageHtml = '';
-    if (imageUrl) {
-      imageHtml = `<img src="${imageUrl}" class="message-image" alt="Uploaded image" onclick="openImageModal('${imageUrl}')" />`;
+    if (imageData) {
+      imageHtml = `<img src="${imageData}" class="message-image" alt="Uploaded image" onclick="openImageModal('${imageData}')" />`;
     }
     
     div.innerHTML = `
@@ -910,24 +923,26 @@
   sendBtn.onclick = async () => {
     const name = nameInput.value.trim() || 'Anonymous';
     const text = messageInput.value.trim();
-    if (!text && !selectedImageFile) return;
+    if (!text && !selectedImageBase64) return;
     
     sendBtn.disabled = true;
     sendBtn.textContent = 'Sending...';
     
     try {
-      let imageUrl = null;
+      let imageData = null;
       
-      // Upload image if one is selected
-      if (selectedImageFile) {
-        imageUrl = await uploadImage(selectedImageFile);
+      // Compress and prepare image if one is selected
+      if (selectedImageFile && selectedImageBase64) {
+        uploadProgress.textContent = 'Compressing image...';
+        imageData = await compressAndEncodeImage(selectedImageFile);
+        uploadProgress.textContent = 'Sending message...';
       }
       
       // Add message to Firestore
       await db.collection('messages').add({
         name,
         text,
-        imageUrl,
+        imageData,
         timestamp: firebase.firestore.FieldValue.serverTimestamp()
       });
       
