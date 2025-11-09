@@ -1,0 +1,70 @@
+import keyboard
+import time
+import os
+from tkinter import filedialog
+import tkinter as tk
+import mouse
+
+root = tk.Tk()
+root.withdraw()
+
+input_file = filedialog.askopenfilename(
+title=“Select text file to type”,
+filetypes=[(“Text files”, “*.txt”), (“All files”, “*.*”)]
+)
+
+f = open(input_file, “r”, encoding=“utf-8”)
+text_to_type = f.read()
+f.close()
+
+required_clicks = 3
+user_input = input(“How many consecutive mouse clicks to stop typing? (default 3): “)
+if user_input:
+required_clicks = int(user_input)
+if required_clicks <= 0:
+required_clicks = 3
+
+typing = False
+click_count = 0
+last_click_time = 0
+
+def on_click():
+global click_count
+global last_click_time
+global typing
+current_time = time.time()
+
+```
+if current_time - last_click_time > 1:
+    click_count = 0
+
+click_count = click_count + 1
+last_click_time = current_time
+
+if click_count >= required_clicks:
+    if typing:
+        typing = False
+```
+
+def type_and_exit():
+global typing
+if typing == True:
+os._exit(0)
+
+```
+typing = True
+
+i = 0
+while i < len(text_to_type):
+    if not typing:
+        break
+    keyboard.write(text_to_type[i])
+    i = i + 1
+    time.sleep(0.0001)
+
+typing = False
+```
+
+mouse.on_click(on_click)
+keyboard.add_hotkey(“F8”, type_and_exit)
+keyboard.wait()
